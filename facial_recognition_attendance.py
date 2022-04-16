@@ -1,3 +1,4 @@
+
 import cv2
 import numpy as np
 import face_recognition
@@ -27,84 +28,80 @@ def encode_images(training_photos):  # function for the encoding of images
     return encoded_images_list
 
 
-def attendance_marking_during_entry(name):   # function for marking attendance after face has been recognized
-    with open('Attendance.csv', 'r+') as file:      # a csv file named Attendance records the attendance of a class
+def attendance_marking_during_entry(name):  # function for marking attendance after face has been recognized
+    with open('Attendance.csv', 'r+') as file:  # a csv file named Attendance records the attendance of a class
         # for a given lecture
 
-        database_list = file.readlines()    # reads the names of students from the central database
-        student_list = []   # names of students that will attend the class
+        database_list = file.readlines()  # reads the names of students from the central database
+        student_list = []  # names of students that will attend the class
         for line in database_list:
-            entry = line.split(',')     # these two lines are to make sure that duplicate attendance is not recorded
+            entry = line.split(',')  # these two lines are to make sure that duplicate attendance is not recorded
             student_list.append(entry[0])  # if someone's present their attendance will be written in the Attendance.csv
-        if name not in student_list:        # for students whose attendance are not already marked
-            current_time = datetime.now()   # the moment their face is recognized their attendance is marked for that
+        if name not in student_list:  # for students whose attendance are not already marked
+            current_time = datetime.now()  # the moment their face is recognized their attendance is marked for that
             # particular timestamp
-            current_time_string = current_time.strftime('%H:%M:%S')     # strftime is a inbuilt method to convert time
+            current_time_string = current_time.strftime('%H:%M:%S')  # strftime is a inbuilt method to convert time
             # in string format
-            file.writelines(f'\n{name}, {current_time_string}')     # attendance is written in our Attendance.csv
+            todays_date = datetime.today()  # will store the attendance against the date on that day
+            todays_date_string = todays_date.strftime('%d-%m-%Y')   # converts date in string format
+            attendance = 'PRESENT'  # those who show up will get marked present.
+            file.writelines(f'\n{name}, {current_time_string}, {todays_date_string}, {attendance}')  # attendance is
+            # written in our Attendance.csv
 
-
-"""def attendance_marking_during_exit(name):
-    with open('Attendance.csv', 'r+') as file:
-
-        database_list = file.readlines()
-        student_list = []
-        for line in database_list:
-            exit_time = line.split(',')
-            student_list.append(exit_time[0])
-        if name not in student_list:
-            current_time = datetime.now()
-            current_time_string = current_time.strftime('%H:%M:%S')
-            file.writelines(f'\n\t\t{current_time_string}')
-"""
 
 known_encoded_images_list = encode_images(training_photos)  # encoded images from the function are stored in this list
 print('Encoding Complete')
 
 webcam_capture = cv2.VideoCapture(0)  # Live feed initialization
 
+start_time = time.time()    # a timer to ensure that students coming late cannot be marked present
+seconds = 30    # in real-life implementation this would be somewhere around 600 seconds or 10 minutes more than
+# the scheduled time of class
+
 while True:
-    success, img = webcam_capture.read()  # Feed from Webcam is captured
-    # (In this case I have used webcam, however in real-life implementation, we'd use a camera module which costs
-    # around 500 rupees)
-    reduced_image = cv2.resize(img, (0, 0), None, 0.25, 0.25)  # The image from the live-feed is reduced in size
-    # This is done in order to speed up the process of facial-detection and recognition. Puts less load on the
-    # processors
-    reduced_image = cv2.cvtColor(reduced_image, cv2.COLOR_BGR2RGB)  # reduced image converted to RGB
 
-    current_frame_faces = face_recognition.face_locations(reduced_image)  # checks for the faces in current frame
-    current_frame_encode = face_recognition.face_encodings(reduced_image, current_frame_faces)  # encodes the faces in
-    # current frame
+    current_time = time.time()
+    elapsed_time = current_time - start_time
 
-    for face_encode, face_location in zip(current_frame_encode, current_frame_faces):  # zip aggregates the
-        # iterables and returns single iterator object
-        matches = face_recognition.compare_faces(known_encoded_images_list, face_encode)  # we verify the faces in
-        # the current frame with the faces we have in our database
-        face_distance = face_recognition.face_distance(known_encoded_images_list, face_encode)  # we calculate the
-        # distance i.e. the measure to which the faces match. Face-Recognition library uses a method in which it
-        # takes in account 128 distinctive features of a human face that are computer generated measurements and
-        # then calculates certain values corresponding to those features. It can then compare the two faces on the basis
-        # of how much they match, and returns a value which can be achieved through face_distance method.
+    if elapsed_time > seconds:  # if timer runs out, i.e. the 10 minute mark passes, the attendance module will close
+        break
+    else:
+        success, img = webcam_capture.read()  # Feed from Webcam is captured
+        # (In this case I have used webcam, however in real-life implementation, we'd use a camera module which costs
+        # around 500 rupees)
+        reduced_image = cv2.resize(img, (0, 0), None, 0.25, 0.25)  # The image from the live-feed is reduced in size
+        # This is done in order to speed up the process of facial-detection and recognition. Puts less load on the
+        # processors
+        reduced_image = cv2.cvtColor(reduced_image, cv2.COLOR_BGR2RGB)  # reduced image converted to RGB
 
-        matched_face_index = np.argmin(face_distance)  # finds the best match from our database. It'll be used to
-        # return the name corresponding to the best match.
+        current_frame_faces = face_recognition.face_locations(reduced_image)  # checks for the faces in current frame
+        current_frame_encode = face_recognition.face_encodings(reduced_image, current_frame_faces)  # encodes the faces
+        # in current frame
 
-        if matches[matched_face_index]:
-            name = student_names[matched_face_index].upper()  # returns the name of the best match
-            y1, x2, y2, x1 = face_location  # for creating a rectangle around the face in current frame
-            y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4  # since, we decreased the size of our image from the
-            # feed earlier by 1/4th, we now have to increase the size of the coordinates by 4
+        for face_encode, face_location in zip(current_frame_encode, current_frame_faces):  # zip aggregates the
+            # iterables and returns single iterator object
+            matches = face_recognition.compare_faces(known_encoded_images_list, face_encode)  # we verify the faces in
+            # the current frame with the faces we have in our database
+            face_distance = face_recognition.face_distance(known_encoded_images_list, face_encode)  # we calculate the
+            # distance i.e. the measure to which the faces match. Face-Recognition library uses a method in which it
+            # takes in account 128 distinctive features of a human face that are computer generated measurements and
+            # then calculates certain values corresponding to those features. It can then compare the two faces on the
+            # basis of how much they match, and returns a value which can be achieved through face_distance method.
 
-            cv2.rectangle(img, (x1, y1), (x2, y2), (255, 255, 255), 2)
-            cv2.rectangle(img, (x1, y2 - 25), (x2, y2), (255, 255, 255), cv2.FILLED)
-            cv2.putText(img, name + " | PRESENT", (x1 + 3, y2 - 3), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.75, (0, 0, 0), 2)
-            # face recognized and marked present.
-            attendance_marking_during_entry(name)    # attendance marking function called after a face is recognized
+            matched_face_index = np.argmin(face_distance)  # finds the best match from our database. It'll be used to
+            # return the name corresponding to the best match.
 
+            if matches[matched_face_index]:
+                name = student_names[matched_face_index].upper()  # returns the name of the best match
+                y1, x2, y2, x1 = face_location  # for creating a rectangle around the face in current frame
+                y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4  # since, we decreased the size of our image from the
+                # feed earlier by 1/4th, we now have to increase the size of the coordinates by 4
 
-    cv2.imshow('Live Feed', img)
-    cv2.waitKey(1)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (255, 255, 255), 2)
+                cv2.rectangle(img, (x1, y2 - 25), (x2, y2), (255, 255, 255), cv2.FILLED)
+                cv2.putText(img, name + " | PRESENT", (x1 + 3, y2 - 3), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.75, (0, 0, 0), 2)
+                # face recognized and marked present.
+                attendance_marking_during_entry(name)  # attendance marking function called after a face is recognized
 
-# now I just have to integrate this with the attendance system, i.e. as soon as our attendance module detects and
-# recognizes a face, an entry in a excel sheet will be made with the in-time of the student and if they entered the
-# class on time, they'll be marked present, otherwise they'll be marked absent.
+        cv2.imshow('Live Feed', img)
+        cv2.waitKey(1)
